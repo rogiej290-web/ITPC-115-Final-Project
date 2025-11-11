@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Information System - ITPC 115</title>
+<style>
+  :root {
+    --bg: #f6f8fa;
+    --card: #fff;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --danger: #dc2626;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: #111;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 28px auto;
+    padding: 20px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-size: 20px;
+    margin: 0;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    box-shadow: 0 4px 18px rgba(16, 24, 40, 0.06);
+    padding: 18px;
+  }
+
+  form {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  label {
+    font-size: 13px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #e6e9ef;
+  }
+
+  .full {
+    grid-column: 1 / 3;
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn {
+    background: var(--accent);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn.secondary {
+    background: #e2e8f0;
+    color: #111;
+  }
+
+  .btn.danger {
+    background: var(--danger);
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 14px 0;
+  }
+
+  .search {
+    flex: 1;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+
+  th,
+  td {
+    padding: 10px;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left;
+    font-size: 13px;
+  }
+
+  th {
+    background: #fafbfd;
+    color: #111;
+  }
+
+  .small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .inline-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  @media (max-width: 820px) {
+    form {
+      grid-template-columns: 1fr;
+    }
+
+    .full {
+      grid-column: auto;
+    }
+  }
+</style>
+
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Student Information System — ITPC 115</h1>
+    </header>
+
+    <section class="card">
+      <form id="studentForm">
+        <div>
+          <label for="fullName">Full Name</label>
+          <input type="text" id="fullName" required>
+        </div>
+        <div>
+          <label for="studentId">Student ID</label>
+          <input type="text" id="studentId" required>
+        </div>
+        <div>
+          <label for="course">Course</label>
+          <input type="text" id="course" required>
+        </div>
+        <div>
+          <label for="yearLevel">Year Level</label>
+          <select id="yearLevel" required>
+            <option value="">--Select--</option>
+            <option>1st Year</option>
+            <option>2nd Year</option>
+            <option>3rd Year</option>
+            <option>4th Year</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="email">Email</label>
+          <input type="email" id="email" required>
+        </div>
+        <div class="actions full">
+          <button class="btn" type="submit" id="saveBtn">Add Student</button>
+          <button class="btn secondary" type="button" id="resetBtn">Reset</button>
+        </div>
+      </form>
+
+      <div class="controls">
+        <input class="search" id="searchInput" placeholder="Search...">
+        <button id="refreshBtn" class="btn secondary">Refresh</button>
+      </div>
+
+      <table id="studentsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Course</th>
+            <th>Year</th>
+            <th>Email</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    let db;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open('sis_db', 1);
+
+        request.onupgradeneeded = e => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('students')) {
+            db.createObjectStore('students', { keyPath: 'studentId' });
+          }
+        };
+
+        request.onsuccess = e => {
+          db = e.target.result;
+          console.log('Database opened successfully');
+          resolve(db);
+        };
+
+        request.onerror = e => {
+          alert('Failed to open database');
+          reject(e);
+        };
+      });
+    }
+
+    async function ensureDBReady() {
+      if (!db) await openDB();
+      if (!db) throw new Error('Database not ready');
+    }
+
+    async function addOrUpdateStudent(student) {
+      await ensureDBReady();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('students', 'readwrite');
+        const store = tx.objectStore('students');
+        const req = store.put(student);
+        req.onsuccess = () => resolve();
+        req.onerror = e => reject(e);
+      });
+    }
+
+    async function getAllStudents() {
+      await ensureDBReady();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('students', 'readonly');
+        const store = tx.objectStore('students');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = e => reject(e);
+      });
+    }
+
+    async function deleteStudent(id) {
+      await ensureDBReady();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('students', 'readwrite');
+        const store = tx.objectStore('students');
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = e => reject(e);
+      });
+    }
+
+    function renderTable(students) {
+      const tbody = document.querySelector('#studentsTable tbody');
+      tbody.innerHTML = '';
+      if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">No records found</td></tr>';
+        return;
+      }
+      for (const s of students) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.studentId}</td>
+          <td>${s.fullName}</td>
+          <td>${s.course}</td>
+          <td>${s.yearLevel}</td>
+          <td>${s.email}</td>
+          <td>
+            <button class='btn secondary edit' data-id='${s.studentId}'>Edit</button>
+            <button class='btn danger delete' data-id='${s.studentId}'>Delete</button>
+          </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function refreshTable() {
+      const students = await getAllStudents();
+      renderTable(students);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await openDB();
+      await refreshTable();
+    });
+
+    const form = document.getElementById('studentForm');
+    const resetBtn = document.getElementById('resetBtn');
+    const searchInput = document.getElementById('searchInput');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const student = {
+        studentId: document.getElementById('studentId').value.trim(),
+        fullName: document.getElementById('fullName').value.trim(),
+        course: document.getElementById('course').value.trim(),
+        yearLevel: document.getElementById('yearLevel').value.trim(),
+        email: document.getElementById('email').value.trim(),
+      };
+
+      if (!student.studentId || !student.fullName || !student.course || !student.yearLevel || !student.email) {
+        alert('All fields are required!');
+        return;
+      }
+
+      await addOrUpdateStudent(student);
+      alert('Student saved successfully!');
+      form.reset();
+      await refreshTable();
+    });
+
+    resetBtn.addEventListener('click', () => form.reset());
+
+    document.querySelector('#studentsTable tbody').addEventListener('click', async e => {
+      if (e.target.classList.contains('delete')) {
+        const id = e.target.dataset.id;
+        if (confirm('Delete this record?')) {
+          await deleteStudent(id);
+          await refreshTable();
+        }
+      } else if (e.target.classList.contains('edit')) {
+        const id = e.target.dataset.id;
+        const all = await getAllStudents();
+        const student = all.find(s => s.studentId === id);
+        if (student) {
+          document.getElementById('studentId').value = student.studentId;
+          document.getElementById('fullName').value = student.fullName;
+          document.getElementById('course').value = student.course;
+          document.getElementById('yearLevel').value = student.yearLevel;
+          document.getElementById('email').value = student.email;
+        }
+      }
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshTable);
+    searchInput.addEventListener('input', async e => {
+      const term = e.target.value.toLowerCase();
+      const all = await getAllStudents();
+      const filtered = all.filter(s => s.studentId.toLowerCase().includes(term) || s.course.toLowerCase().includes(term) || s.yearLevel.toLowerCase().includes(term));
+      renderTable(filtered);
+    });
+  </script>
+</body>
+</html>
